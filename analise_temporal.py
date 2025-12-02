@@ -57,8 +57,11 @@ COL_DATA = 'FtoResumoVendaGeralItem[dt_contabil]'
 # Parâmetros de análise
 TOP_N = 10
 BOTTOM_N = 10
-PAUSA_ENTRE_REQUISICOES = 1.5
-MAX_TENTATIVAS_API = 3
+PAUSA_ENTRE_REQUISICOES = 2.0  # segundos entre requisições
+MAX_TENTATIVAS_API = 5   # tentativas para erros gerais
+MAX_TENTATIVAS_RATE_LIMIT = 8  # tentativas extras para rate limit
+DELAY_BASE_RATE_LIMIT = 30  # segundos base para rate limit
+DELAY_ENTRE_CHAMADAS = 1.0  # segundos entre cada chamada à API
 
 # API Key - carrega de variável de ambiente via .env
 API_KEY = os.environ.get('GEMINI_API_KEY', '')
@@ -314,6 +317,8 @@ def analisar_mes_com_ia(
     Implementa exponential backoff para lidar com rate limits e erros
     de conexão, garantindo resiliência nas chamadas à API.
 
+    Para rate limit (429), usa delays maiores e mais tentativas.
+
     Args:
         modelo: Modelo Gemini configurado
         id_loja: Identificador da loja
@@ -335,8 +340,15 @@ def analisar_mes_com_ia(
         id_loja, mes_ref, nome_mes, lista_itens, contexto_sazonal
     )
 
-    for tentativa in range(1, tentativas_max + 1):
+    tentativas_rate_limit = 0  # Contador separado para rate limit
+    tentativa = 0
+
+    while tentativa < tentativas_max or tentativas_rate_limit < MAX_TENTATIVAS_RATE_LIMIT:
+        tentativa += 1
         try:
+            # Pausa entre chamadas para evitar rate limit
+            time.sleep(DELAY_ENTRE_CHAMADAS)
+
             resposta = modelo.generate_content(prompt)
 
             if not resposta or not resposta.text:
@@ -363,13 +375,25 @@ def analisar_mes_com_ia(
 
         except json.JSONDecodeError as e:
             logger.warning(f"Erro ao parsear JSON ({mes_ref}): {e}")
-            # Tenta extrair JSON parcial se possível
             return []
 
         except google_exceptions.ResourceExhausted:
-            tempo = (2 ** tentativa) + random.uniform(0, 1)
-            logger.warning(f"Rate limit atingido. Aguardando {tempo:.1f}s...")
+            tentativas_rate_limit += 1
+            # Delay progressivo: 30s, 60s, 90s, 120s... (mais agressivo para rate limit)
+            tempo = DELAY_BASE_RATE_LIMIT * tentativas_rate_limit + random.uniform(0, 5)
+            logger.warning(
+                f"⚠️ Rate limit atingido! Tentativa {tentativas_rate_limit}/{MAX_TENTATIVAS_RATE_LIMIT}. "
+                f"Aguardando {tempo:.0f}s..."
+            )
             time.sleep(tempo)
+
+            if tentativas_rate_limit >= MAX_TENTATIVAS_RATE_LIMIT:
+                logger.error(f"❌ Rate limit persistente para {mes_ref}. Pulando.")
+                return []
+
+            # Não incrementa tentativa normal para rate limit
+            tentativa -= 1
+            continue
 
         except (google_exceptions.ServiceUnavailable,
                 google_exceptions.DeadlineExceeded,

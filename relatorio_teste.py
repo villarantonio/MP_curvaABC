@@ -50,8 +50,11 @@ LIMITE_CLASSE_B = 95  # Percentual acumulado para classe B
 
 # Parâmetros de processamento IA
 TAMANHO_LOTE_IA = 15
-PAUSA_ENTRE_LOTES = 1.5  # segundos
-MAX_TENTATIVAS_API = 3
+PAUSA_ENTRE_LOTES = 2.0  # segundos entre lotes
+MAX_TENTATIVAS_API = 5   # tentativas para erros gerais
+MAX_TENTATIVAS_RATE_LIMIT = 8  # tentativas extras para rate limit
+DELAY_BASE_RATE_LIMIT = 30  # segundos base para rate limit
+DELAY_ENTRE_CHAMADAS = 1.0  # segundos entre cada chamada à API
 
 # API Key - carrega de variável de ambiente (NUNCA commitar chaves no código!)
 API_KEY = os.environ.get('GEMINI_API_KEY', '')
@@ -164,10 +167,12 @@ def analisar_lote_ia_robusto(
     tentativas_max: int = MAX_TENTATIVAS_API
 ) -> list[dict]:
     """
-    Envia lote de itens para análise IA com sistema de retentativa.
+    Envia lote de itens para análise IA com sistema de retentativa robusto.
 
     Implementa exponential backoff para lidar com erros temporários
     como RemoteDisconnected, Timeout, rate limiting, etc.
+
+    Para rate limit (429), usa delays maiores e mais tentativas.
 
     Args:
         modelo: Modelo Gemini configurado
@@ -192,8 +197,15 @@ def analisar_lote_ia_robusto(
     {json.dumps(lote_itens, ensure_ascii=False)}
     """
 
-    for tentativa in range(1, tentativas_max + 1):
+    tentativas_rate_limit = 0  # Contador separado para rate limit
+    tentativa = 0
+
+    while tentativa < tentativas_max or tentativas_rate_limit < MAX_TENTATIVAS_RATE_LIMIT:
+        tentativa += 1
         try:
+            # Pausa entre chamadas para evitar rate limit
+            time.sleep(DELAY_ENTRE_CHAMADAS)
+
             resposta = modelo.generate_content(prompt)
 
             # Valida se há resposta
@@ -216,9 +228,22 @@ def analisar_lote_ia_robusto(
             return []
 
         except google_exceptions.ResourceExhausted as e:
-            tempo_espera = (2 ** tentativa) + random.uniform(0, 1)
-            logger.warning(f"Rate limit atingido. Aguardando {tempo_espera:.1f}s...")
+            tentativas_rate_limit += 1
+            # Delay progressivo: 30s, 60s, 90s, 120s... (mais agressivo para rate limit)
+            tempo_espera = DELAY_BASE_RATE_LIMIT * tentativas_rate_limit + random.uniform(0, 5)
+            logger.warning(
+                f"⚠️ Rate limit atingido! Tentativa {tentativas_rate_limit}/{MAX_TENTATIVAS_RATE_LIMIT}. "
+                f"Aguardando {tempo_espera:.0f}s..."
+            )
             time.sleep(tempo_espera)
+
+            if tentativas_rate_limit >= MAX_TENTATIVAS_RATE_LIMIT:
+                logger.error("❌ Rate limit persistente. Pulando este lote.")
+                return []
+
+            # Não incrementa tentativa normal para rate limit
+            tentativa -= 1
+            continue
 
         except (google_exceptions.ServiceUnavailable,
                 google_exceptions.DeadlineExceeded,
