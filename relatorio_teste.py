@@ -17,6 +17,10 @@ from pathlib import Path
 import pandas as pd
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
+from dotenv import load_dotenv
+
+# Carrega variáveis do arquivo .env
+load_dotenv()
 
 # ==========================================
 # 1. CONFIGURAÇÕES E CONSTANTES
@@ -49,8 +53,8 @@ TAMANHO_LOTE_IA = 15
 PAUSA_ENTRE_LOTES = 1.5  # segundos
 MAX_TENTATIVAS_API = 3
 
-# API Key - carrega de variável de ambiente ou usa valor padrão
-API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyB-mn4aRwth91Bp_p2iWBp6DlyIGCd0KcM')
+# API Key - carrega de variável de ambiente (NUNCA commitar chaves no código!)
+API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 # ==========================================
 # 2. FUNÇÕES AUXILIARES

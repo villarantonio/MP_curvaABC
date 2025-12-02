@@ -34,11 +34,12 @@ Sistema de análise de vendas para restaurantes que gera relatórios de **Curva 
 - **Python 3.10+**
 - pandas
 - google-generativeai
+- python-dotenv
 
 ### Instalação das Dependências
 
 ```bash
-pip install pandas google-generativeai
+pip install pandas google-generativeai python-dotenv
 ```
 
 ---
@@ -47,16 +48,19 @@ pip install pandas google-generativeai
 
 ### 1. API Key do Google Gemini
 
-Configure a variável de ambiente `GEMINI_API_KEY`:
+Crie um arquivo `.env` na raiz do projeto com sua chave:
+
+```env
+GEMINI_API_KEY=sua-api-key-aqui
+```
+
+> ⚠️ **Importante:** O arquivo `.env` está no `.gitignore` e NÃO será commitado.
+
+**Alternativa:** Variável de ambiente direta:
 
 **Windows (PowerShell):**
 ```powershell
 $env:GEMINI_API_KEY = "sua-api-key-aqui"
-```
-
-**Windows (CMD):**
-```cmd
-set GEMINI_API_KEY=sua-api-key-aqui
 ```
 
 **Linux/macOS:**

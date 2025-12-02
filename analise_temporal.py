@@ -28,6 +28,10 @@ from pathlib import Path
 import pandas as pd
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
+from dotenv import load_dotenv
+
+# Carrega variáveis do arquivo .env
+load_dotenv()
 
 # ==========================================
 # 1. CONFIGURAÇÕES E CONSTANTES
@@ -56,8 +60,8 @@ BOTTOM_N = 10
 PAUSA_ENTRE_REQUISICOES = 1.5
 MAX_TENTATIVAS_API = 3
 
-# API Key
-API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyB-mn4aRwth91Bp_p2iWBp6DlyIGCd0KcM')
+# API Key - carrega de variável de ambiente via .env
+API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 # Mapeamento de meses para contexto sazonal brasileiro
 CONTEXTO_SAZONAL = {
