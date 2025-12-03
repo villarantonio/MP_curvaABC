@@ -61,7 +61,7 @@ PAUSA_ENTRE_REQUISICOES = 2.0  # segundos entre requisições
 MAX_TENTATIVAS_API = 5   # tentativas para erros gerais
 MAX_TENTATIVAS_RATE_LIMIT = 8  # tentativas extras para rate limit
 DELAY_BASE_RATE_LIMIT = 30  # segundos base para rate limit
-DELAY_ENTRE_CHAMADAS = 35.0  # segundos entre cada chamada à API (evita rate limit)
+DELAY_ENTRE_CHAMADAS = 20.0  # segundos entre cada chamada (3 req/min seguro)
 
 # API Key - carrega de variável de ambiente via .env
 API_KEY = os.environ.get('GEMINI_API_KEY', '')
@@ -142,13 +142,13 @@ def configurar_ia() -> Optional[genai.GenerativeModel]:
     try:
         genai.configure(api_key=API_KEY)
         modelo = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.0-flash-lite",  # Modelo leve com rate limits mais altos
             generation_config={
                 "temperature": 0.25,
                 "response_mime_type": "application/json"
             }
         )
-        logger.info("Modelo Gemini 2.5 Flash configurado com sucesso")
+        logger.info("Modelo Gemini 2.0 Flash Lite configurado com sucesso")
         return modelo
     except Exception as e:
         logger.error(f"Erro ao configurar modelo: {e}")
@@ -181,14 +181,14 @@ def construir_prompt_analise(
     mes_ref: str,
     nome_mes: str,
     lista_itens: list[dict],
-    contexto_sazonal: dict[str, str]
+    contexto_sazonal: dict[str, str],
+    total_mensal: float
 ) -> str:
     """
     Constrói o prompt otimizado para análise de vendas mensais.
 
     O prompt é estruturado em seções claras para maximizar a qualidade
-    das respostas da IA, incluindo contexto de negócio, sazonalidade
-    brasileira e exemplos de boas respostas.
+    das respostas da IA, focando em insights individuais sem comparações.
 
     Args:
         id_loja: Identificador da loja
@@ -196,6 +196,7 @@ def construir_prompt_analise(
         nome_mes: Nome do mês em português
         lista_itens: Lista de produtos com dados de vendas
         contexto_sazonal: Dicionário com contexto sazonal do mês
+        total_mensal: Valor total de vendas do mês (todos os produtos)
 
     Returns:
         Prompt formatado para a IA
@@ -211,46 +212,42 @@ def construir_prompt_analise(
     prompt = f"""# ANÁLISE DE PERFORMANCE MENSAL - RESTAURANTE
 
 ## 🎯 PAPEL
-Você é um consultor sênior de gestão de restaurantes especializado em análise de cardápio, otimização de vendas e estratégias sazonais no mercado brasileiro.
+Você é um consultor sênior de gestão de restaurantes especializado em análise de cardápio e otimização de vendas no mercado brasileiro.
 
 ## 📊 CONTEXTO DO NEGÓCIO
 - **Estabelecimento:** Restaurante/Churrascaria (Loja {id_loja})
 - **Período:** {nome_mes}
 - **Estação do ano:** {contexto_sazonal['estacao']}
 - **Eventos/Contexto:** {contexto_sazonal['eventos']}
-- **Tendências esperadas:** {contexto_sazonal['tendencia']}
 
 ## 📈 VISÃO GERAL DOS DADOS
+- **FATURAMENTO TOTAL DO MÊS:** R$ {total_mensal:,.2f}
 - **TOP {TOP_N} produtos:** R$ {total_top:,.2f} em vendas (campeões do mês)
 - **BOTTOM {BOTTOM_N} produtos:** R$ {total_bottom:,.2f} em vendas (menor performance)
 - **Total de itens para análise:** {len(lista_itens)}
 
 ## 📋 DADOS DETALHADOS
-Cada produto inclui: nome, categoria (TOP/BOTTOM), valor vendido este mês, valor mês anterior, e variação percentual.
+Cada produto inclui: nome, categoria (TOP/BOTTOM), e valor vendido este mês.
 
 ```json
 {json.dumps(lista_itens, ensure_ascii=False)}
 ```
 
 ## ✅ TAREFA
-Analise CADA produto individualmente considerando:
+Analise CADA produto INDIVIDUALMENTE. Forneça um diagnóstico específico e uma ação prática.
 
 ### Para produtos TOP (Campeões):
-1. **Identificar o motivo do sucesso** - É sazonal? Preço competitivo? Qualidade percebida?
-2. **Avaliar sustentabilidade** - O crescimento é consistente ou pontual?
-3. **Oportunidades de maximização** - Upselling, combos, aumento de margem?
+- Identifique o potencial do produto
+- Sugira oportunidades de maximização (combos, upselling, margem)
 
 ### Para produtos BOTTOM (Baixa performance):
-1. **Diagnosticar a causa** - Sazonalidade inversa? Preço alto? Falta de visibilidade?
-2. **Classificar urgência** - Queda grave (>30%) vs declínio moderado vs estável baixo
-3. **Recomendar ação específica** - Promoção? Reformulação? Descontinuação? Reposicionamento?
+- Diagnostique possível causa (sazonalidade, visibilidade, preço)
+- Recomende ação específica (promoção, reformulação, reposicionamento)
 
 ### Fatores a considerar:
-- **Sazonalidade brasileira:** {contexto_sazonal['estacao']} influencia consumo de bebidas geladas/quentes, carnes, saladas
-- **Eventos do período:** {contexto_sazonal['eventos']} - impactam comportamento de compra
-- **Produtos novos:** Se variação="Novo", é lançamento - avaliar potencial inicial
-- **Quedas drásticas:** >50% de queda pode indicar problema operacional (falta de insumo, qualidade)
-- **Categoria do produto:** Carnes premium vs bebidas vs acompanhamentos têm dinâmicas diferentes
+- **Sazonalidade:** {contexto_sazonal['estacao']} - influencia consumo
+- **Eventos:** {contexto_sazonal['eventos']} - impactam comportamento
+- **Categoria:** Carnes, bebidas e acompanhamentos têm dinâmicas diferentes
 
 ## 📝 FORMATO DE RESPOSTA (JSON)
 Retorne EXATAMENTE um array JSON com um objeto para CADA produto:
@@ -259,47 +256,34 @@ Retorne EXATAMENTE um array JSON com um objeto para CADA produto:
 [
   {{
     "produto": "NOME_EXATO_COMO_NOS_DADOS",
-    "diagnostico": "Frase objetiva explicando a performance (máx 100 chars)",
-    "acao": "Recomendação específica e executável (máx 80 chars)"
+    "diagnostico": "Diagnóstico direto sobre o produto (máx 80 chars)",
+    "acao": "Ação prática e executável (máx 60 chars)"
   }}
 ]
 ```
 
 ## 💡 EXEMPLOS DE BOAS RESPOSTAS
 
-### Produto TOP com crescimento:
 ```json
-{{"produto": "PICANHA ANGUS", "diagnostico": "Líder absoluto +23% - alta demanda em {contexto_sazonal['estacao'].lower()} e boa margem", "acao": "Criar combo 'Picanha + 2 Acompanhamentos' com 10% desconto"}}
+{{"produto": "PICANHA ANGUS", "diagnostico": "Produto estrela com alta margem e demanda constante", "acao": "Criar combo com acompanhamentos para aumentar ticket"}}
 ```
 
-### Produto TOP estável:
 ```json
-{{"produto": "COCA-COLA 350ML", "diagnostico": "Performance consistente, produto âncora do cardápio", "acao": "Manter posição e garantir estoque para pico do fim de semana"}}
+{{"produto": "SOPA DE LEGUMES", "diagnostico": "Baixa procura típica no {contexto_sazonal['estacao'].lower()}", "acao": "Reduzir preparo ou pausar temporariamente"}}
 ```
 
-### Produto BOTTOM com queda sazonal:
 ```json
-{{"produto": "SOPA DE LEGUMES", "diagnostico": "Queda esperada -45% - {contexto_sazonal['estacao'].lower()} reduz demanda por pratos quentes", "acao": "Reduzir preparo em 50% ou pausar até outono"}}
-```
-
-### Produto BOTTOM com problema:
-```json
-{{"produto": "CERVEJA ARTESANAL X", "diagnostico": "Queda atípica -60% mesmo em alta temporada - investigar causa", "acao": "Verificar qualidade/fornecedor e considerar degustação promocional"}}
-```
-
-### Produto novo:
-```json
-{{"produto": "ESPETINHO VEGANO", "diagnostico": "Lançamento recente - vendas iniciais moderadas, período de adaptação", "acao": "Destacar no cardápio e treinar equipe para sugestão ativa"}}
+{{"produto": "CERVEJA ARTESANAL", "diagnostico": "Vendas abaixo do esperado para a categoria", "acao": "Promover degustação ou ajustar preço"}}
 ```
 
 ## ⚠️ REGRAS CRÍTICAS
-1. Use EXATAMENTE o nome do produto como está nos dados (case-sensitive)
-2. Diagnóstico deve ser ESPECÍFICO ao produto, não genérico
-3. Ação deve ser EXECUTÁVEL pelo gerente da loja amanhã
-4. Considere o contexto de {contexto_sazonal['estacao']} em TODAS as análises
-5. Para variação "Novo" ou "Sem dados", foque em potencial e estratégia de lançamento
-6. Máximo 100 caracteres no diagnóstico e 80 na ação
-7. NÃO invente dados - use apenas o que foi fornecido"""
+1. Use EXATAMENTE o nome do produto como está nos dados
+2. Diagnóstico deve ser DIRETO e ESPECÍFICO ao produto
+3. Ação deve ser EXECUTÁVEL e PRÁTICA
+4. NÃO faça comparações entre produtos ou períodos
+5. NÃO mencione variações percentuais ou tendências
+6. Foque no VALOR ABSOLUTO e no POTENCIAL do produto
+7. Máximo 80 caracteres no diagnóstico e 60 na ação"""
 
     return prompt
 
@@ -309,6 +293,7 @@ def analisar_mes_com_ia(
     id_loja: Any,
     mes_ref: str,
     lista_itens: list[dict],
+    total_mensal: float,
     tentativas_max: int = MAX_TENTATIVAS_API
 ) -> list[dict]:
     """
@@ -324,6 +309,7 @@ def analisar_mes_com_ia(
         id_loja: Identificador da loja
         mes_ref: Período no formato '2024-01'
         lista_itens: Lista de produtos com dados de vendas
+        total_mensal: Valor total de vendas do mês
         tentativas_max: Número máximo de tentativas em caso de erro
 
     Returns:
@@ -337,7 +323,7 @@ def analisar_mes_com_ia(
 
     # Constrói prompt otimizado
     prompt = construir_prompt_analise(
-        id_loja, mes_ref, nome_mes, lista_itens, contexto_sazonal
+        id_loja, mes_ref, nome_mes, lista_itens, contexto_sazonal, total_mensal
     )
 
     tentativas_rate_limit = 0  # Contador separado para rate limit
@@ -514,70 +500,50 @@ def selecionar_top_bottom(df_mes: pd.DataFrame) -> pd.DataFrame:
 
 def processar_mes(
     df_loja: pd.DataFrame,
-    mes_atual: str,
-    mes_anterior: Optional[str]
-) -> list[dict]:
+    mes_atual: str
+) -> tuple[list[dict], float]:
     """
     Processa dados de um mês específico, gerando ranking TOP/BOTTOM.
 
-    Utiliza operações vetorizadas do pandas para melhor performance,
-    evitando loops com iterrows().
+    Utiliza operações vetorizadas do pandas para melhor performance.
+    Retorna também o total mensal de vendas (todos os produtos).
 
     Args:
         df_loja: DataFrame com dados da loja
         mes_atual: Período atual no formato '2024-01'
-        mes_anterior: Período anterior para comparação (pode ser None)
 
     Returns:
-        Lista de dicionários com dados de cada produto
+        Tupla com (lista de dicionários com dados de cada produto, total mensal)
     """
     df_mes = df_loja[df_loja['mes_ano'] == mes_atual].copy()
+
+    # Calcula o TOTAL MENSAL de todas as vendas (não apenas TOP/BOTTOM)
+    total_mensal = df_mes['valor_limpo'].sum()
+
     selecao = selecionar_top_bottom(df_mes)
 
     if selecao.empty:
-        return []
+        return [], total_mensal
 
-    # Dados do mês anterior para comparação (operação vetorizada)
-    if mes_anterior:
-        df_ant = df_loja[df_loja['mes_ano'] == mes_anterior]
-        vendas_anteriores = df_ant.set_index('produto')['valor_limpo']
-        selecao['venda_anterior'] = selecao['produto'].map(vendas_anteriores).fillna(0.0)
-    else:
-        selecao['venda_anterior'] = 0.0
-
-    # Calcula variação de forma vetorizada
-    def calcular_variacao_row(row: pd.Series) -> str:
-        atual = row['valor_limpo']
-        anterior = row['venda_anterior']
-        if anterior > 0:
-            delta = ((atual - anterior) / anterior) * 100
-            return f"{delta:+.1f}%"
-        elif atual > 0:
-            return "Novo (sem vendas anteriores)"
-        return "Sem dados"
-
-    selecao['variacao_texto'] = selecao.apply(calcular_variacao_row, axis=1)
-
-    # Converte para lista de dicionários de forma eficiente
+    # Converte para lista de dicionários (sem comparações)
     itens = selecao.apply(
         lambda row: {
             "produto": row['produto'],
             "tipo": row['tipo_ranking'],
-            "venda_este_mes": round(row['valor_limpo'], 2),
-            "venda_mes_passado": round(row['venda_anterior'], 2),
-            "variacao": row['variacao_texto']
+            "venda_este_mes": round(row['valor_limpo'], 2)
         },
         axis=1
     ).tolist()
 
-    return itens
+    return itens, total_mensal
 
 
 def aplicar_analise_ia(
     modelo: Optional[genai.GenerativeModel],
     id_loja: str,
     mes: str,
-    itens: list[dict]
+    itens: list[dict],
+    total_mensal: float
 ) -> list[dict]:
     """Aplica análise IA aos itens do mês."""
     if not modelo:
@@ -586,7 +552,7 @@ def aplicar_analise_ia(
             item['analise_ia'] = {"diagnostico": "IA não disponível", "acao": "-"}
         return itens
 
-    resultado_ia = analisar_mes_com_ia(modelo, id_loja, mes, itens)
+    resultado_ia = analisar_mes_com_ia(modelo, id_loja, mes, itens, total_mensal)
 
     # Mapeia resultados por produto
     dict_analises = {}
@@ -615,20 +581,22 @@ def processar_loja(
     analises_mensais = {}
 
     for i, mes_atual in enumerate(meses):
-        mes_anterior = meses[i - 1] if i > 0 else None
-
-        # Processa ranking do mês
-        itens = processar_mes(df_loja, mes_atual, mes_anterior)
+        # Processa ranking do mês e calcula total mensal
+        itens, total_mensal = processar_mes(df_loja, mes_atual)
 
         if not itens:
             continue
 
-        logger.info(f"  📅 {extrair_nome_mes(mes_atual)}: {len(itens)} itens")
+        logger.info(f"  📅 {extrair_nome_mes(mes_atual)}: {len(itens)} itens | Total: R$ {total_mensal:,.2f}")
 
         # Aplica análise IA
-        itens = aplicar_analise_ia(modelo, id_loja, mes_atual, itens)
+        itens = aplicar_analise_ia(modelo, id_loja, mes_atual, itens, total_mensal)
 
-        analises_mensais[mes_atual] = itens
+        # Adiciona total mensal ao resultado
+        analises_mensais[mes_atual] = {
+            "total_mensal": round(total_mensal, 2),
+            "itens": itens
+        }
 
         # Pausa entre requisições
         if modelo and i < len(meses) - 1:
@@ -690,15 +658,21 @@ def gerar_estatisticas_execucao(resultado: list[dict]) -> dict[str, Any]:
     total_lojas = len(resultado)
     total_meses = sum(len(r.get('analises_mensais', {})) for r in resultado)
     total_itens = sum(
-        len(itens)
+        len(mes_data.get('itens', []))
         for r in resultado
-        for itens in r.get('analises_mensais', {}).values()
+        for mes_data in r.get('analises_mensais', {}).values()
+    )
+    faturamento_total = sum(
+        mes_data.get('total_mensal', 0)
+        for r in resultado
+        for mes_data in r.get('analises_mensais', {}).values()
     )
 
     return {
         'lojas': total_lojas,
         'meses_analisados': total_meses,
         'itens_processados': total_itens,
+        'faturamento_total': faturamento_total,
         'media_itens_por_mes': total_itens / total_meses if total_meses > 0 else 0
     }
 
@@ -774,10 +748,11 @@ def main() -> None:
         logger.info(f"📊 Lojas processadas: {stats['lojas']}")
         logger.info(f"📅 Meses analisados: {stats['meses_analisados']}")
         logger.info(f"📦 Itens processados: {stats['itens_processados']}")
+        logger.info(f"💰 Faturamento total: R$ {stats['faturamento_total']:,.2f}")
         logger.info(f"⏱️  Tempo total: {tempo_total:.1f} segundos")
         logger.info(f"📁 Arquivo gerado: {ARQUIVO_SAIDA}")
         logger.info("-" * 60)
-        logger.info("Estrutura: {id_loja, analises_mensais: {mes: [itens]}}")
+        logger.info("Estrutura: {id_loja, analises_mensais: {mes: {total_mensal, itens}}}")
         logger.info("=" * 60)
     else:
         logger.error("❌ Falha ao salvar resultado final")

@@ -54,7 +54,7 @@ PAUSA_ENTRE_LOTES = 2.0  # segundos entre lotes
 MAX_TENTATIVAS_API = 5   # tentativas para erros gerais
 MAX_TENTATIVAS_RATE_LIMIT = 8  # tentativas extras para rate limit
 DELAY_BASE_RATE_LIMIT = 30  # segundos base para rate limit
-DELAY_ENTRE_CHAMADAS = 35.0  # segundos entre cada chamada à API (evita rate limit)
+DELAY_ENTRE_CHAMADAS = 45.0  # segundos entre cada chamada à API (2 RPM = 30s mínimo + margem)
 
 # API Key - carrega de variável de ambiente (NUNCA commitar chaves no código!)
 API_KEY = os.environ.get('GEMINI_API_KEY', '')
@@ -147,13 +147,13 @@ def configurar_ia() -> Optional[genai.GenerativeModel]:
     try:
         genai.configure(api_key=API_KEY)
         modelo = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.0-flash-lite",  # Modelo com rate limits mais altos
             generation_config={
                 "temperature": 0.2,
                 "response_mime_type": "application/json"
             }
         )
-        logger.info("Modelo Gemini configurado com sucesso")
+        logger.info("Modelo Gemini 2.0 Flash Lite configurado com sucesso")
         return modelo
     except Exception as e:
         logger.error(f"Erro ao configurar modelo Gemini: {e}")
@@ -189,13 +189,29 @@ def analisar_lote_ia_robusto(
     if not lote_itens:
         return []
 
-    prompt = f"""
-    Analise estes itens da Loja {id_loja} (Cardápio Restaurante).
-    Retorne JSON LISTA estrito: [ {{"produto": "Nome", "analise": "Frase curta sobre tendência (Alta/Queda/Sazonal)"}} ]
+    prompt = f"""# ANÁLISE DE PRODUTOS - CURVA ABC
 
-    DADOS:
-    {json.dumps(lote_itens, ensure_ascii=False)}
-    """
+Analise cada produto da Loja {id_loja} individualmente.
+
+## REGRAS:
+- Forneça um diagnóstico DIRETO sobre cada produto
+- NÃO faça comparações entre produtos
+- NÃO mencione tendências, variações ou percentuais
+- Foque no POTENCIAL e AÇÃO PRÁTICA
+
+## DADOS:
+{json.dumps(lote_itens, ensure_ascii=False)}
+
+## FORMATO DE RESPOSTA (JSON):
+Retorne EXATAMENTE um array JSON:
+[
+  {{"produto": "NOME_EXATO", "analise": "Diagnóstico direto e ação prática (máx 60 chars)"}}
+]
+
+## EXEMPLOS:
+{{"produto": "PICANHA", "analise": "Produto estrela - manter destaque no cardápio"}}
+{{"produto": "SOPA", "analise": "Baixa procura - promover ou reduzir preparo"}}
+"""
 
     tentativas_rate_limit = 0  # Contador separado para rate limit
     tentativa = 0
