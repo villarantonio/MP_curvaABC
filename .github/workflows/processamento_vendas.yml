@@ -63,7 +63,7 @@ jobs:
         run: |
           echo "🚀 Iniciando análise ABC..."
           ARQUIVO="${{ env.ARQUIVO_DADOS }}"
-          python relatorio_teste.py "$ARQUIVO"
+          python scripts/relatorio_teste.py "$ARQUIVO"
           echo "✅ Análise ABC concluída"
 
       # 6. Executar análise temporal multi-granularidade (diário, semanal, mensal)
@@ -72,7 +72,7 @@ jobs:
         run: |
           echo "🚀 Iniciando análise temporal (diário, semanal, mensal)..."
           ARQUIVO="${{ env.ARQUIVO_DADOS }}"
-          python analise_temporal_multi.py "$ARQUIVO" --all
+          python scripts/analise_temporal_multi.py "$ARQUIVO" --all
           echo "✅ Análise temporal multi-granularidade concluída"
 
       # 7. Verificar JSONs gerados
