@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Manda Picanha - Análise de Vendas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #7c3aed;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: var(--primary); font-size: 2em; margin-bottom: 5px; }
+        .header p { color: var(--muted); }
+
+        .controls { background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        .filter-group label { font-weight: 500; color: var(--muted); font-size: 0.9em; }
+
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-outline { background: white; border: 1px solid #e2e8f0; color: var(--muted); }
+        .btn-outline.active { background: var(--secondary); color: white; border-color: var(--secondary); }
+
+        .period-btns { display: flex; gap: 5px; }
+        .store-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
+        .store-btn { padding: 8px 16px; border-radius: 20px; font-size: 0.85em; }
+
+        .grid { display: grid; gap: 20px; margin-top: 20px; }
+        .grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+        .card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .card-title { font-size: 0.9em; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card-value { font-size: 2em; font-weight: 700; color: var(--success); }
+
+        .chart-container { height: 300px; position: relative; }
+
+        .ranking-item { display: flex; justify-content: space-between; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
+        .ranking-item.success { background: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--success); }
+        .ranking-item.danger { background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--danger); }
+        .ranking-name { font-weight: 500; }
+        .ranking-value { font-weight: 600; }
+
+        .loading { text-align: center; padding: 40px; color: var(--muted); }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .error { background: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 20px; border-radius: 8px; text-align: center; }
+
+        @media (max-width: 768px) {
+            .filter-row { flex-direction: column; align-items: stretch; }
+            .period-btns { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🥩 Manda Picanha - Dashboard</h1>
+            <p>Análise de Vendas com IA</p>
+        </div>
+
+        <div class="controls">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>Granularidade:</label>
+                    <div class="period-btns">
+                        <button class="btn btn-outline" onclick="setGranularity('diario')">📅 Diário</button>
+                        <button class="btn btn-outline" onclick="setGranularity('semanal')">📆 Semanal</button>
+                        <button class="btn btn-outline active" onclick="setGranularity('mensal')">🗓️ Mensal</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label>Período:</label>
+                    <select id="periodSelect" class="btn btn-outline" onchange="updateDashboard()">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="updateDashboard()">🔄 Atualizar</button>
+            </div>
+            <div class="store-btns" id="storeList">
+                <span class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></span>
+            </div>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="card" style="text-align: center;">
+                <div class="card-title">💰 Faturamento no Período</div>
+                <div class="card-value" id="totalFat">R$ 0,00</div>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div class="card-title">📦 Produtos Analisados</div>
+                <div class="card-value" id="totalItens" style="color: var(--primary);">0</div>
+            </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top: 20px;">
+            <div class="card">
+                <div class="card-title">📊 Curva ABC</div>
+                <div class="chart-container"><canvas id="chartABC"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-title">📈 Histórico de Vendas</div>
+                <div class="chart-container"><canvas id="chartHistory"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top: 20px;">
+            <div class="card">
+                <div class="card-title">🏆 Top 10 Produtos</div>
+                <div id="listBest"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">⚠️ Bottom 10 Produtos</div>
+                <div id="listWorst"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-title">🤖 Insights da IA</div>
+            <div id="insightsContainer" class="grid grid-3"></div>
+        </div>
+    </div>
+
+    <script>
+        // Estado global
+        let DADOS = {};
+        let GRANULARIDADE = 'mensal';
+        let LOJA_ATIVA = null;
+        let chartABC = null;
+        let chartHistory = null;
+
+        // URLs dos JSONs (relativo ao HTML)
+        const DATA_PATH = './data/';
+
+        // Carrega dados do JSON
+        async function loadData(granularidade) {
+            const arquivo = `vendas_${granularidade}.json`;
+            try {
+                const response = await fetch(DATA_PATH + arquivo);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`Erro ao carregar ${arquivo}:`, error);
+                return null;
+            }
+        }
+
+        // Carrega consolidado (índice)
+        async function loadConsolidado() {
+            try {
+                const response = await fetch(DATA_PATH + 'consolidado.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Erro ao carregar consolidado:', error);
+                return null;
+            }
+        }
+
+        // Define granularidade
+        async function setGranularity(tipo) {
+            GRANULARIDADE = tipo;
+
+            // Atualiza botões
+            document.querySelectorAll('.period-btns .btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent.toLowerCase().includes(tipo.substring(0, 3))) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Carrega novos dados
+            const dados = await loadData(tipo);
+            if (dados) {
+                DADOS = dados;
+                updatePeriodSelect();
+                updateStoreList();
+                updateDashboard();
+            }
+        }
+
+        // Atualiza select de períodos
+        function updatePeriodSelect() {
+            const select = document.getElementById('periodSelect');
+            select.innerHTML = '';
+
+            if (!DADOS.dados_lojas || !DADOS.dados_lojas.length) return;
+
+            const loja = DADOS.dados_lojas.find(l => String(l.id_loja) === String(LOJA_ATIVA)) || DADOS.dados_lojas[0];
+            const periodos = Object.keys(loja.analises || {}).sort().reverse();
+
+            periodos.forEach((p, i) => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = formatPeriod(p);
+                if (i === 0) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        // Formata período para exibição
+        function formatPeriod(p) {
+            if (p.includes('W')) return `Semana ${p.split('W')[1]}/${p.split('-')[0]}`;
+            if (p.match(/^\d{4}-\d{2}-\d{2}$/)) return new Date(p + 'T12:00:00').toLocaleDateString('pt-BR');
+            if (p.match(/^\d{4}-\d{2}$/)) {
+                const [ano, mes] = p.split('-');
+                const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                return `${meses[parseInt(mes)-1]}/${ano}`;
+            }
+            return p;
+        }
+
+        // Atualiza lista de lojas
+        function updateStoreList() {
+            const container = document.getElementById('storeList');
+            container.innerHTML = '';
+
+            if (!DADOS.dados_lojas) return;
+
+            DADOS.dados_lojas.forEach((loja, i) => {
+                const btn = document.createElement('button');
+                btn.className = `btn store-btn ${i === 0 ? 'btn-primary' : 'btn-outline'}`;
+                btn.textContent = `Loja ${loja.id_loja}`;
+                btn.onclick = () => selectStore(loja.id_loja, btn);
+                container.appendChild(btn);
+
+                if (i === 0) LOJA_ATIVA = loja.id_loja;
+            });
+        }
+
+        // Seleciona loja
+        function selectStore(id, btn) {
+            LOJA_ATIVA = id;
+            document.querySelectorAll('.store-btn').forEach(b => {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline');
+            });
+            btn.classList.remove('btn-outline');
+            btn.classList.add('btn-primary');
+            updatePeriodSelect();
+            updateDashboard();
+        }
+
+        // Atualiza dashboard principal
+        function updateDashboard() {
+            if (!DADOS.dados_lojas || !LOJA_ATIVA) return;
+
+            const loja = DADOS.dados_lojas.find(l => String(l.id_loja) === String(LOJA_ATIVA));
+            if (!loja) return;
+
+            const periodoSelecionado = document.getElementById('periodSelect').value;
+            const dadosPeriodo = loja.analises[periodoSelecionado];
+
+            if (!dadosPeriodo) return;
+
+            // Atualiza totais
+            document.getElementById('totalFat').textContent = (dadosPeriodo.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+            document.getElementById('totalItens').textContent = (dadosPeriodo.itens || []).length + ' produtos';
+
+            // Atualiza rankings
+            const itens = dadosPeriodo.itens || [];
+            const tops = itens.filter(i => i.tipo === 'TOP').slice(0, 10);
+            const bottoms = itens.filter(i => i.tipo === 'BOTTOM').slice(0, 10);
+
+            renderRanking('listBest', tops, 'success');
+            renderRanking('listWorst', bottoms, 'danger');
+
+            // Atualiza gráficos
+            renderChartABC(itens);
+            renderChartHistory(loja.analises);
+
+            // Atualiza insights
+            renderInsights(itens);
+        }
+
+        // Renderiza ranking
+        function renderRanking(containerId, items, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = items.map((item, i) => `
+                <div class="ranking-item ${type}">
+                    <span class="ranking-name">${i+1}. ${item.produto}</span>
+                    <span class="ranking-value">${item.valor.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</span>
+                </div>
+            `).join('') || '<p style="color:var(--muted);text-align:center;">Sem dados</p>';
+        }
+
+        // Renderiza gráfico ABC
+        function renderChartABC(itens) {
+            const ctx = document.getElementById('chartABC');
+            if (chartABC) chartABC.destroy();
+
+            const tops = itens.filter(i => i.tipo === 'TOP');
+            const bottoms = itens.filter(i => i.tipo === 'BOTTOM');
+
+            chartABC = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [`Top ${tops.length}`, `Bottom ${bottoms.length}`],
+                    datasets: [{
+                        data: [tops.reduce((s,i) => s + i.valor, 0), bottoms.reduce((s,i) => s + i.valor, 0)],
+                        backgroundColor: ['#10b981', '#ef4444']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+
+        // Renderiza gráfico de histórico
+        function renderChartHistory(analises) {
+            const ctx = document.getElementById('chartHistory');
+            if (chartHistory) chartHistory.destroy();
+
+            const periodos = Object.keys(analises).sort();
+            const valores = periodos.map(p => analises[p].total || 0);
+
+            chartHistory = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: periodos.map(formatPeriod),
+                    datasets: [{
+                        label: 'Vendas (R$)',
+                        data: valores,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } } }
+                }
+            });
+        }
+
+        // Renderiza insights da IA
+        function renderInsights(itens) {
+            const container = document.getElementById('insightsContainer');
+            const comInsights = itens.filter(i => i.analise_ia && i.analise_ia.diagnostico && i.analise_ia.diagnostico !== 'IA não disponível');
+
+            if (!comInsights.length) {
+                container.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;text-align:center;">Sem insights disponíveis para este período</p>';
+                return;
+            }
+
+            container.innerHTML = comInsights.slice(0, 9).map(item => `
+                <div class="card" style="padding:15px;">
+                    <strong style="color:var(--primary);">${item.produto}</strong>
+                    <p style="margin:8px 0;font-size:0.9em;color:var(--text);">${item.analise_ia.diagnostico}</p>
+                    <p style="font-size:0.85em;color:var(--success);"><strong>Ação:</strong> ${item.analise_ia.acao}</p>
+                </div>
+            `).join('');
+        }
+
+        // Inicialização
+        async function init() {
+            // Tenta carregar consolidado primeiro
+            const consolidado = await loadConsolidado();
+
+            if (consolidado) {
+                console.log('Dados disponíveis:', consolidado.arquivos);
+            }
+
+            // Carrega dados mensais por padrão
+            await setGranularity('mensal');
+        }
+
+        // Inicia quando a página carregar
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
+

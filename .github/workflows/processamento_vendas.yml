@@ -66,23 +66,26 @@ jobs:
           python relatorio_teste.py "$ARQUIVO"
           echo "✅ Análise ABC concluída"
 
-      # 6. Executar análise temporal (todas as lojas)
-      - name: 📅 Executar Análise Temporal (analise_temporal.py)
+      # 6. Executar análise temporal multi-granularidade (diário, semanal, mensal)
+      - name: 📅 Executar Análise Temporal Multi-Granularidade
         continue-on-error: true
         run: |
-          echo "🚀 Iniciando análise temporal..."
+          echo "🚀 Iniciando análise temporal (diário, semanal, mensal)..."
           ARQUIVO="${{ env.ARQUIVO_DADOS }}"
-          python analise_temporal.py "$ARQUIVO"
-          echo "✅ Análise temporal concluída"
+          python analise_temporal_multi.py "$ARQUIVO" --all
+          echo "✅ Análise temporal multi-granularidade concluída"
 
       # 7. Verificar JSONs gerados
       - name: 🔍 Verificar arquivos JSON gerados
         run: |
-          echo "📁 Arquivos JSON encontrados:"
-          ls -la *.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON encontrado"
+          echo "📁 Arquivos JSON na raiz:"
+          ls -la *.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON na raiz"
+          echo ""
+          echo "📁 Arquivos JSON em mp-main/data/:"
+          ls -la mp-main/data/*.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON em mp-main/data/"
           echo ""
           echo "📊 Resumo dos arquivos gerados:"
-          for f in *.json; do
+          for f in mp-main/data/*.json; do
             if [ -f "$f" ]; then
               echo "  - $f ($(wc -c < "$f") bytes)"
             fi
@@ -97,9 +100,10 @@ jobs:
       # 9. Commit e push dos resultados
       - name: 📤 Commit dos resultados JSON
         run: |
-          # Adiciona todos os JSONs gerados
+          # Adiciona JSONs da raiz e da pasta mp-main/data
           git add *.json 2>/dev/null || true
-          
+          git add mp-main/data/*.json 2>/dev/null || true
+
           # Verifica se há mudanças para commitar
           if git diff --staged --quiet; then
             echo "ℹ️ Nenhuma alteração nos arquivos JSON para commitar"
@@ -109,8 +113,9 @@ jobs:
 
             📅 Data: $TIMESTAMP
             📊 Arquivo processado: ${{ env.ARQUIVO_DADOS }}
+            📁 JSONs em: mp-main/data/
             🤖 Gerado automaticamente pelo GitHub Actions"
-            
+
             git push
             echo "✅ Resultados commitados com sucesso!"
           fi
