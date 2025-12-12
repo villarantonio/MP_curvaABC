@@ -81,11 +81,11 @@ jobs:
           echo "📁 Arquivos JSON na raiz:"
           ls -la *.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON na raiz"
           echo ""
-          echo "📁 Arquivos JSON em mp-main/data/:"
-          ls -la mp-main/data/*.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON em mp-main/data/"
+          echo "📁 Arquivos JSON em docs/data/:"
+          ls -la docs/data/*.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON em docs/data/"
           echo ""
           echo "📊 Resumo dos arquivos gerados:"
-          for f in mp-main/data/*.json; do
+          for f in docs/data/*.json; do
             if [ -f "$f" ]; then
               echo "  - $f ($(wc -c < "$f") bytes)"
             fi
@@ -100,9 +100,9 @@ jobs:
       # 9. Commit e push dos resultados
       - name: 📤 Commit dos resultados JSON
         run: |
-          # Adiciona JSONs da raiz e da pasta mp-main/data
+          # Adiciona JSONs da raiz e da pasta docs/data
           git add *.json 2>/dev/null || true
-          git add mp-main/data/*.json 2>/dev/null || true
+          git add docs/data/*.json 2>/dev/null || true
 
           # Verifica se há mudanças para commitar
           if git diff --staged --quiet; then
@@ -113,7 +113,7 @@ jobs:
 
             📅 Data: $TIMESTAMP
             📊 Arquivo processado: ${{ env.ARQUIVO_DADOS }}
-            📁 JSONs em: mp-main/data/
+            📁 JSONs em: docs/data/
             🤖 Gerado automaticamente pelo GitHub Actions"
 
             git push
