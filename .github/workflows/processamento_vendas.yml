@@ -3,17 +3,17 @@ name: Processamento de Vendas - Análise ABC e Temporal
 on:
   push:
     paths:
-      - 'dados_entrada.csv'
+      - 'GMRMPMA (2)(Export).csv'
   workflow_dispatch:
     inputs:
       arquivo_csv:
         description: 'Nome do arquivo CSV a processar'
         required: false
-        default: 'dados_entrada.csv'
+        default: 'GMRMPMA (2)(Export).csv'
 
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  ARQUIVO_CSV: ${{ github.event.inputs.arquivo_csv || 'dados_entrada.csv' }}
+  ARQUIVO_CSV: ${{ github.event.inputs.arquivo_csv || 'GMRMPMA (2)(Export).csv' }}
 
 jobs:
   analise-vendas:

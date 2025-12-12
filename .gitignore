@@ -3,9 +3,11 @@
 # ===========================================
 
 # Dados e arquivos gerados
-*.csv
 *.json
 !exemplo_saida.json
+
+# CSVs - permite apenas o arquivo principal de dados
+!GMRMPMA (2)(Export).csv
 
 # Python
 __pycache__/
