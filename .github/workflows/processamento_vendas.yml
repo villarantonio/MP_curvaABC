@@ -1,0 +1,128 @@
+name: Processamento de Vendas - Análise ABC e Temporal
+
+on:
+  push:
+    paths:
+      - 'dados_entrada.csv'
+  workflow_dispatch:
+    inputs:
+      arquivo_csv:
+        description: 'Nome do arquivo CSV a processar'
+        required: false
+        default: 'dados_entrada.csv'
+
+env:
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  ARQUIVO_CSV: ${{ github.event.inputs.arquivo_csv || 'dados_entrada.csv' }}
+
+jobs:
+  analise-vendas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 horas devido aos delays de rate limit
+
+    permissions:
+      contents: write
+
+    steps:
+      # 1. Checkout do repositório
+      - name: 📥 Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # 2. Configurar Python
+      - name: 🐍 Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      # 3. Instalar dependências
+      - name: 📦 Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. Verificar se arquivo CSV existe
+      - name: 🔍 Verificar arquivo CSV
+        run: |
+          if [ ! -f "${{ env.ARQUIVO_CSV }}" ]; then
+            echo "❌ Arquivo ${{ env.ARQUIVO_CSV }} não encontrado!"
+            exit 1
+          fi
+          echo "✅ Arquivo ${{ env.ARQUIVO_CSV }} encontrado"
+          echo "📊 Linhas no arquivo: $(wc -l < ${{ env.ARQUIVO_CSV }})"
+
+      # 5. Executar análise ABC (Curva ABC)
+      - name: 📈 Executar Análise ABC (relatorio_teste.py)
+        continue-on-error: true
+        run: |
+          echo "🚀 Iniciando análise ABC..."
+          python relatorio_teste.py "${{ env.ARQUIVO_CSV }}"
+          echo "✅ Análise ABC concluída"
+
+      # 6. Executar análise temporal (todas as lojas)
+      - name: 📅 Executar Análise Temporal (analise_temporal.py)
+        continue-on-error: true
+        run: |
+          echo "🚀 Iniciando análise temporal..."
+          python analise_temporal.py "${{ env.ARQUIVO_CSV }}"
+          echo "✅ Análise temporal concluída"
+
+      # 7. Verificar JSONs gerados
+      - name: 🔍 Verificar arquivos JSON gerados
+        run: |
+          echo "📁 Arquivos JSON encontrados:"
+          ls -la *.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON encontrado"
+          echo ""
+          echo "📊 Resumo dos arquivos gerados:"
+          for f in *.json; do
+            if [ -f "$f" ]; then
+              echo "  - $f ($(wc -c < "$f") bytes)"
+            fi
+          done
+
+      # 8. Configurar Git para commit
+      - name: 🔧 Configurar Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+
+      # 9. Commit e push dos resultados
+      - name: 📤 Commit dos resultados JSON
+        run: |
+          # Adiciona todos os JSONs gerados
+          git add *.json 2>/dev/null || true
+          
+          # Verifica se há mudanças para commitar
+          if git diff --staged --quiet; then
+            echo "ℹ️ Nenhuma alteração nos arquivos JSON para commitar"
+          else
+            TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            git commit -m "chore: atualização automática dos resultados de análise [skip ci]
+
+            📅 Data: $TIMESTAMP
+            📊 Arquivo processado: ${{ env.ARQUIVO_CSV }}
+            🤖 Gerado automaticamente pelo GitHub Actions"
+            
+            git push
+            echo "✅ Resultados commitados com sucesso!"
+          fi
+
+      # 10. Sumário da execução
+      - name: 📋 Sumário da Execução
+        if: always()
+        run: |
+          echo "## 📊 Resumo da Execução" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo processado | \`${{ env.ARQUIVO_CSV }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Data/Hora | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Arquivos JSON gerados:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -la *.json 2>/dev/null || echo "Nenhum JSON encontrado"
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import json
 import time
 import random
@@ -34,8 +35,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configurações do arquivo
-NOME_ARQUIVO = "GMRMPMA (2)(Export).csv"
+# Configurações do arquivo - aceita argumento de linha de comando ou usa valor padrão
+NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "GMRMPMA (2)(Export).csv"
 ARQUIVO_SAIDA = "analise_abc_final.json"
 
 # Colunas esperadas do CSV

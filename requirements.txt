@@ -1,0 +1,15 @@
+# Dependências do projeto MP_curvaABC
+# Análise de vendas com IA usando Google Gemini
+
+# Manipulação de dados
+pandas>=2.0.0
+
+# Google Generative AI (Gemini)
+google-generativeai>=0.8.0
+
+# Google API Core (para exceções e retry)
+google-api-core>=2.0.0
+
+# Carregamento de variáveis de ambiente
+python-dotenv>=1.0.0
+

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import json
 import time
 import random
@@ -44,8 +45,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Arquivos
-NOME_ARQUIVO = "GMRMPMA (2)(Export).csv"
+# Arquivos - aceita argumento de linha de comando ou usa valor padrão
+NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "GMRMPMA (2)(Export).csv"
 ARQUIVO_SAIDA = "analise_mensal_sazonal.json"
 
 # Colunas do CSV
@@ -142,7 +143,7 @@ def configurar_ia() -> Optional[genai.GenerativeModel]:
     try:
         genai.configure(api_key=API_KEY)
         modelo = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-lite",  # Modelo leve com rate limits mais altos
+            model_name="gemini-2.0-flash",  # Modelo leve com rate limits mais altos
             generation_config={
                 "temperature": 0.25,
                 "response_mime_type": "application/json"
