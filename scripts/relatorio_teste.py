@@ -55,8 +55,8 @@ TAMANHO_LOTE_IA = 15
 PAUSA_ENTRE_LOTES = 2.0  # segundos entre lotes
 MAX_TENTATIVAS_API = 5   # tentativas para erros gerais
 MAX_TENTATIVAS_RATE_LIMIT = 8  # tentativas extras para rate limit
-DELAY_BASE_RATE_LIMIT = 30  # segundos base para rate limit
-DELAY_ENTRE_CHAMADAS = 45.0  # segundos entre cada chamada à API (2 RPM = 30s mínimo + margem)
+DELAY_BASE_RATE_LIMIT = 15  # segundos base para rate limit (reduzido para plano pago)
+DELAY_ENTRE_CHAMADAS = 12.0  # segundos entre cada chamada à API (plano pago tem rate limit maior)
 
 # API Key - carrega de variável de ambiente (NUNCA commitar chaves no código!)
 API_KEY = os.environ.get('GEMINI_API_KEY', '')

@@ -54,7 +54,7 @@ TOP_N = 10
 BOTTOM_N = 10
 PAUSA_ENTRE_REQUISICOES = 2.0
 MAX_TENTATIVAS_API = 5
-DELAY_ENTRE_CHAMADAS = 35.0
+DELAY_ENTRE_CHAMADAS = 12.0  # segundos entre chamadas (reduzido para plano pago)
 
 API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
