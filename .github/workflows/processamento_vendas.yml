@@ -3,17 +3,17 @@ name: Processamento de Vendas - Análise ABC e Temporal
 on:
   push:
     paths:
-      - 'dados_vendas.xlsx'
+      - 'dados_vendas.csv'
   workflow_dispatch:
     inputs:
       arquivo_dados:
         description: 'Nome do arquivo de dados a processar (CSV ou XLSX)'
         required: false
-        default: 'dados_vendas.xlsx'
+        default: 'dados_vendas.csv'
 
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  ARQUIVO_DADOS: ${{ github.event.inputs.arquivo_dados || 'dados_vendas.xlsx' }}
+  ARQUIVO_DADOS: ${{ github.event.inputs.arquivo_dados || 'dados_vendas.csv' }}
 
 jobs:
   analise-vendas:
