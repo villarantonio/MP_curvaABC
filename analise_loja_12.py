@@ -1,7 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 """
-ANÃLISE TEMPORAL DE VENDAS - loja 122
-Processa APENAS a loja 122 para evitar rate limit da API.
+ANÃLISE TEMPORAL DE VENDAS - LOJA 1
+Processa APENAS a loja 1 para evitar rate limit da API.
 """
 
 from __future__ import annotations
@@ -38,7 +38,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Arquivos - aceita argumento de linha de comando ou usa valor padrÃ£o
-NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "GMRMPMA (2)(Export).csv"
+# Suporta tanto CSV quanto XLSX
+NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "dados_vendas.xlsx"
 ARQUIVO_SAIDA = f"analise_temporal_loja_{LOJA_ID}.json"
 
 # Colunas do CSV
@@ -300,11 +301,26 @@ def analisar_mes_com_ia(
 # CARREGAMENTO E PREPARAÃ‡ÃƒO DOS DADOS
 # ==========================================
 
-def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
+def carregar_dados(caminho: str) -> Optional[pd.DataFrame]:
+    """Carrega arquivo de dados (CSV ou XLSX) com tratamento automÃ¡tico de formato."""
     if not os.path.exists(caminho):
         logger.error(f"Arquivo nÃ£o encontrado: {caminho}")
         return None
 
+    # Detecta formato pela extensÃ£o
+    extensao = caminho.lower().split('.')[-1]
+
+    # Arquivos Excel (.xlsx)
+    if extensao in ['xlsx', 'xls']:
+        try:
+            df = pd.read_excel(caminho, engine='openpyxl', dtype={COL_LOJA: str})
+            logger.info(f"Arquivo Excel carregado - {len(df)} registros")
+            return df
+        except Exception as e:
+            logger.error(f"Erro ao carregar Excel: {e}")
+            return None
+
+    # Arquivos CSV
     encodings = ['latin1', 'utf-8', 'cp1252']
     for encoding in encodings:
         try:
@@ -316,7 +332,7 @@ def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
         except Exception as e:
             logger.error(f"Erro ao carregar CSV: {e}")
             return None
-    logger.error("NÃ£o foi possÃ­vel carregar o CSV")
+    logger.error("NÃ£o foi possÃ­vel carregar o arquivo")
     return None
 
 
@@ -451,7 +467,7 @@ def main() -> None:
     inicio = time.time()
 
     # 1. Carrega dados
-    df_raw = carregar_csv(NOME_ARQUIVO)
+    df_raw = carregar_dados(NOME_ARQUIVO)
     if df_raw is None:
         return
 
