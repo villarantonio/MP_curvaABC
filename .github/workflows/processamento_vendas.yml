@@ -47,19 +47,23 @@ jobs:
       # 4. Verificar se arquivo CSV existe
       - name: 🔍 Verificar arquivo CSV
         run: |
-          if [ ! -f "${{ env.ARQUIVO_CSV }}" ]; then
-            echo "❌ Arquivo ${{ env.ARQUIVO_CSV }} não encontrado!"
+          echo "📂 Listando arquivos CSV no diretório:"
+          ls -la *.csv 2>/dev/null || echo "Nenhum CSV encontrado"
+          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          if [ ! -f "$ARQUIVO" ]; then
+            echo "❌ Arquivo '$ARQUIVO' não encontrado!"
             exit 1
           fi
-          echo "✅ Arquivo ${{ env.ARQUIVO_CSV }} encontrado"
-          echo "📊 Linhas no arquivo: $(wc -l < ${{ env.ARQUIVO_CSV }})"
+          echo "✅ Arquivo '$ARQUIVO' encontrado"
+          echo "📊 Linhas no arquivo: $(wc -l < "$ARQUIVO")"
 
       # 5. Executar análise ABC (Curva ABC)
       - name: 📈 Executar Análise ABC (relatorio_teste.py)
         continue-on-error: true
         run: |
           echo "🚀 Iniciando análise ABC..."
-          python relatorio_teste.py "${{ env.ARQUIVO_CSV }}"
+          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          python relatorio_teste.py "$ARQUIVO"
           echo "✅ Análise ABC concluída"
 
       # 6. Executar análise temporal (todas as lojas)
@@ -67,7 +71,8 @@ jobs:
         continue-on-error: true
         run: |
           echo "🚀 Iniciando análise temporal..."
-          python analise_temporal.py "${{ env.ARQUIVO_CSV }}"
+          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          python analise_temporal.py "$ARQUIVO"
           echo "✅ Análise temporal concluída"
 
       # 7. Verificar JSONs gerados
