@@ -46,7 +46,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Arquivos - aceita argumento de linha de comando ou usa valor padrão
-NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "GMRMPMA (2)(Export).csv"
+# Suporta tanto CSV quanto XLSX
+NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "dados_vendas.xlsx"
 ARQUIVO_SAIDA = "analise_mensal_sazonal.json"
 
 # Colunas do CSV
@@ -403,12 +404,30 @@ def analisar_mes_com_ia(
 # 4. CARREGAMENTO E PREPARAÇÃO DOS DADOS
 # ==========================================
 
-def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
-    """Carrega CSV com tratamento de encodings."""
+def carregar_dados(caminho: str) -> Optional[pd.DataFrame]:
+    """Carrega arquivo de dados (CSV ou XLSX) com tratamento automático de formato."""
     if not os.path.exists(caminho):
         logger.error(f"Arquivo não encontrado: {caminho}")
         return None
 
+    # Detecta formato pela extensão
+    extensao = caminho.lower().split('.')[-1]
+
+    # Arquivos Excel (.xlsx)
+    if extensao in ['xlsx', 'xls']:
+        try:
+            df = pd.read_excel(
+                caminho,
+                engine='openpyxl',
+                dtype={COL_LOJA: str}
+            )
+            logger.info(f"Arquivo Excel carregado - {len(df)} registros")
+            return df
+        except Exception as e:
+            logger.error(f"Erro ao carregar Excel: {e}")
+            return None
+
+    # Arquivos CSV
     encodings = ['latin1', 'utf-8', 'cp1252']
 
     for encoding in encodings:
@@ -428,7 +447,7 @@ def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
             logger.error(f"Erro ao carregar CSV: {e}")
             return None
 
-    logger.error("Não foi possível carregar o CSV")
+    logger.error("Não foi possível carregar o arquivo")
     return None
 
 
@@ -700,7 +719,7 @@ def main() -> None:
     inicio = time.time()
 
     # 1. Carrega dados
-    df_raw = carregar_csv(NOME_ARQUIVO)
+    df_raw = carregar_dados(NOME_ARQUIVO)
     if df_raw is None:
         return
 

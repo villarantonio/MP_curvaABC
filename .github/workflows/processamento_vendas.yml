@@ -3,17 +3,17 @@ name: Processamento de Vendas - Análise ABC e Temporal
 on:
   push:
     paths:
-      - 'GMRMPMA (2)(Export).csv'
+      - 'dados_vendas.xlsx'
   workflow_dispatch:
     inputs:
-      arquivo_csv:
-        description: 'Nome do arquivo CSV a processar'
+      arquivo_dados:
+        description: 'Nome do arquivo de dados a processar (CSV ou XLSX)'
         required: false
-        default: 'GMRMPMA (2)(Export).csv'
+        default: 'dados_vendas.xlsx'
 
 env:
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  ARQUIVO_CSV: ${{ github.event.inputs.arquivo_csv || 'GMRMPMA (2)(Export).csv' }}
+  ARQUIVO_DADOS: ${{ github.event.inputs.arquivo_dados || 'dados_vendas.xlsx' }}
 
 jobs:
   analise-vendas:
@@ -44,25 +44,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Verificar se arquivo CSV existe
-      - name: 🔍 Verificar arquivo CSV
+      # 4. Verificar se arquivo de dados existe
+      - name: 🔍 Verificar arquivo de dados
         run: |
-          echo "📂 Listando arquivos CSV no diretório:"
-          ls -la *.csv 2>/dev/null || echo "Nenhum CSV encontrado"
-          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          echo "📂 Listando arquivos de dados no diretório:"
+          ls -la *.xlsx *.csv 2>/dev/null || echo "Nenhum arquivo de dados encontrado"
+          ARQUIVO="${{ env.ARQUIVO_DADOS }}"
           if [ ! -f "$ARQUIVO" ]; then
             echo "❌ Arquivo '$ARQUIVO' não encontrado!"
             exit 1
           fi
           echo "✅ Arquivo '$ARQUIVO' encontrado"
-          echo "📊 Linhas no arquivo: $(wc -l < "$ARQUIVO")"
+          echo "📊 Tamanho: $(ls -lh "$ARQUIVO" | awk '{print $5}')"
 
       # 5. Executar análise ABC (Curva ABC)
       - name: 📈 Executar Análise ABC (relatorio_teste.py)
         continue-on-error: true
         run: |
           echo "🚀 Iniciando análise ABC..."
-          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          ARQUIVO="${{ env.ARQUIVO_DADOS }}"
           python relatorio_teste.py "$ARQUIVO"
           echo "✅ Análise ABC concluída"
 
@@ -71,7 +71,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "🚀 Iniciando análise temporal..."
-          ARQUIVO="${{ env.ARQUIVO_CSV }}"
+          ARQUIVO="${{ env.ARQUIVO_DADOS }}"
           python analise_temporal.py "$ARQUIVO"
           echo "✅ Análise temporal concluída"
 
@@ -108,7 +108,7 @@ jobs:
             git commit -m "chore: atualização automática dos resultados de análise [skip ci]
 
             📅 Data: $TIMESTAMP
-            📊 Arquivo processado: ${{ env.ARQUIVO_CSV }}
+            📊 Arquivo processado: ${{ env.ARQUIVO_DADOS }}
             🤖 Gerado automaticamente pelo GitHub Actions"
             
             git push
@@ -123,7 +123,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Arquivo processado | \`${{ env.ARQUIVO_CSV }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo processado | \`${{ env.ARQUIVO_DADOS }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Data/Hora | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📁 Arquivos JSON gerados:" >> $GITHUB_STEP_SUMMARY

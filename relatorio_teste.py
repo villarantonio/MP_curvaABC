@@ -36,7 +36,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configurações do arquivo - aceita argumento de linha de comando ou usa valor padrão
-NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "GMRMPMA (2)(Export).csv"
+# Suporta tanto CSV quanto XLSX
+NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "dados_vendas.xlsx"
 ARQUIVO_SAIDA = "analise_abc_final.json"
 
 # Colunas esperadas do CSV
@@ -285,20 +286,39 @@ Retorne EXATAMENTE um array JSON:
 # 4. FUNÇÕES DE PROCESSAMENTO DE DADOS
 # ==========================================
 
-def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
+def carregar_dados(caminho: str) -> Optional[pd.DataFrame]:
     """
-    Carrega arquivo CSV com tratamento de diferentes encodings.
+    Carrega arquivo de dados (CSV ou XLSX) com tratamento automático de formato.
 
     Args:
-        caminho: Caminho para o arquivo CSV
+        caminho: Caminho para o arquivo de dados (CSV ou XLSX)
 
     Returns:
         DataFrame carregado ou None em caso de erro
     """
     if not os.path.exists(caminho):
-        logger.error(f"Arquivo CSV não encontrado: {caminho}")
+        logger.error(f"Arquivo não encontrado: {caminho}")
         return None
 
+    # Detecta formato pelo extensão
+    extensao = caminho.lower().split('.')[-1]
+
+    # Arquivos Excel (.xlsx)
+    if extensao in ['xlsx', 'xls']:
+        try:
+            df = pd.read_excel(
+                caminho,
+                engine='openpyxl',
+                dtype={COL_LOJA: str}  # Preserva ID como string
+            )
+            logger.info(f"Arquivo Excel carregado com sucesso")
+            logger.info(f"Total de registros: {len(df)}")
+            return df
+        except Exception as e:
+            logger.error(f"Erro ao carregar Excel: {e}")
+            return None
+
+    # Arquivos CSV
     encodings = ['latin1', 'utf-8', 'cp1252', 'iso-8859-1']
 
     for encoding in encodings:
@@ -319,7 +339,7 @@ def carregar_csv(caminho: str) -> Optional[pd.DataFrame]:
             logger.error(f"Erro ao carregar CSV com {encoding}: {e}")
             continue
 
-    logger.error("Não foi possível carregar o CSV com nenhum encoding suportado")
+    logger.error("Não foi possível carregar o arquivo com nenhum formato suportado")
     return None
 
 
@@ -585,7 +605,7 @@ def main() -> None:
     logger.info("=" * 50)
 
     # 1. Carregar dados
-    df = carregar_csv(NOME_ARQUIVO)
+    df = carregar_dados(NOME_ARQUIVO)
     if df is None:
         return
 
