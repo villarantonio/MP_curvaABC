@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURAÇÕES
 # ==========================================
 NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "dados_vendas.csv"
-PASTA_SAIDA = "mp-main/data"
+PASTA_SAIDA = "docs/data"
 
 # Colunas do CSV/XLSX
 COL_LOJA = 'FtoResumoVendaGeralItem[loja_id]'
