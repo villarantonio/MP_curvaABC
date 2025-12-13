@@ -18,7 +18,7 @@ env:
 jobs:
   analise-vendas:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # 2 horas devido aos delays de rate limit
+    timeout-minutes: 360  # 6 horas (máximo do GitHub Actions)
 
     permissions:
       contents: write
