@@ -31,7 +31,8 @@ on:
 
 env:
   # URL padrão do SharePoint (pode ser sobrescrita pelo input)
-  SHAREPOINT_URL_PADRAO: 'https://mandapicanha-my.sharepoint.com/:x:/r/personal/mandapicanha_mandapicanha_onmicrosoft_com/_layouts/15/Doc.aspx?sourcedoc=%7B8C63D151-AE36-4C67-94FA-4B07FFDD547E%7D&file=GMRMPMA%20(2).xlsx&action=default&mobileredirect=true&share=cQpR0WOMNq5nTJT6Swf_3VR-EgUALlrUXl8xMvWRhVuZm4LLfg'
+  # Link público: "Qualquer pessoa com o link pode editar"
+  SHAREPOINT_URL_PADRAO: 'https://mandapicanha-my.sharepoint.com/:x:/g/personal/mandapicanha_mandapicanha_onmicrosoft_com/IQBR0WOMNq5nTJT6Swf_3VR-AWD9IwTgOrab8T3durFMuAY?e=P88Wym'
   ARQUIVO_DADOS: 'dados_vendas.xlsx'
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   # Credenciais Azure (opcionais - para links privados)
