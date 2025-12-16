@@ -1,0 +1,207 @@
+name: Automação Completa - Download SharePoint + Análise + Dashboard
+
+# =====================================================
+# WORKFLOW SUBSTITUI O N8N - EXECUTA TUDO NO GITHUB
+# =====================================================
+# Este workflow:
+# 1. Baixa o arquivo Excel do SharePoint (sem limite de memória do n8n)
+# 2. Executa as análises com Gemini AI
+# 3. Faz commit automático dos JSONs para o dashboard
+
+on:
+  # Agendamento automático (substitui o trigger do n8n)
+  schedule:
+    - cron: '0 9 * * *'  # Executa todo dia às 9h UTC (6h Brasília)
+  
+  # Permite execução manual
+  workflow_dispatch:
+    inputs:
+      sharepoint_url:
+        description: 'URL do SharePoint (deixe vazio para usar a URL padrão)'
+        required: false
+        default: ''
+      forcar_download:
+        description: 'Forçar novo download mesmo se arquivo existir'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  # URL padrão do SharePoint (pode ser sobrescrita pelo input)
+  SHAREPOINT_URL_PADRAO: 'https://mandapicanha-my.sharepoint.com/:x:/r/personal/mandapicanha_mandapicanha_onmicrosoft_com/_layouts/15/Doc.aspx?sourcedoc=%7B8C63D151-AE36-4C67-94FA-4B07FFDD547E%7D&file=GMRMPMA%20(2).xlsx&action=default&mobileredirect=true&share=cQpR0WOMNq5nTJT6Swf_3VR-EgUALlrUXl8xMvWRhVuZm4LLfg'
+  ARQUIVO_DADOS: 'dados_vendas.xlsx'
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  # Credenciais Azure (opcionais - para links privados)
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  download-e-analise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3 horas (arquivos grandes podem demorar)
+
+    permissions:
+      contents: write
+
+    steps:
+      # =====================================================
+      # FASE 1: PREPARAÇÃO
+      # =====================================================
+      
+      - name: 📥 Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: 🐍 Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 📦 Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install requests  # Para download do SharePoint
+
+      # =====================================================
+      # FASE 2: DOWNLOAD DO SHAREPOINT
+      # =====================================================
+
+      - name: 🔗 Determinar URL do SharePoint
+        id: url
+        run: |
+          INPUT_URL="${{ github.event.inputs.sharepoint_url }}"
+          if [ -n "$INPUT_URL" ]; then
+            echo "url=$INPUT_URL" >> $GITHUB_OUTPUT
+            echo "📌 Usando URL fornecida manualmente"
+          else
+            echo "url=${{ env.SHAREPOINT_URL_PADRAO }}" >> $GITHUB_OUTPUT
+            echo "📌 Usando URL padrão configurada"
+          fi
+
+      - name: 📥 Download do arquivo do SharePoint
+        env:
+          SHAREPOINT_URL: ${{ steps.url.outputs.url }}
+        run: |
+          echo "🔗 Iniciando download do SharePoint..."
+          echo "📁 Arquivo de destino: ${{ env.ARQUIVO_DADOS }}"
+          
+          # Executa script de download
+          python scripts/download_sharepoint.py "$SHAREPOINT_URL" "${{ env.ARQUIVO_DADOS }}"
+          
+          # Verifica se arquivo foi baixado
+          if [ -f "${{ env.ARQUIVO_DADOS }}" ]; then
+            echo "✅ Download concluído com sucesso!"
+            echo "📊 Tamanho: $(ls -lh "${{ env.ARQUIVO_DADOS }}" | awk '{print $5}')"
+            echo "📋 Linhas estimadas: $(python -c "import pandas as pd; print(len(pd.read_excel('${{ env.ARQUIVO_DADOS }}', nrows=None)))" 2>/dev/null || echo "N/A")"
+          else
+            echo "❌ Falha no download!"
+            exit 1
+          fi
+
+      # =====================================================
+      # FASE 3: ANÁLISES COM IA
+      # =====================================================
+
+      - name: 📈 Executar Análise ABC (Curva ABC)
+        continue-on-error: true
+        run: |
+          echo "🚀 Iniciando análise ABC..."
+          python scripts/relatorio_teste.py "${{ env.ARQUIVO_DADOS }}"
+          echo "✅ Análise ABC concluída"
+
+      - name: 📅 Executar Análise Temporal Multi-Granularidade
+        continue-on-error: true
+        run: |
+          echo "🚀 Iniciando análise temporal (diário, semanal, mensal)..."
+          python scripts/analise_temporal_multi.py "${{ env.ARQUIVO_DADOS }}" --all
+          echo "✅ Análise temporal multi-granularidade concluída"
+
+      # =====================================================
+      # FASE 4: VERIFICAÇÃO E COMMIT DOS JSONS
+      # =====================================================
+
+      - name: 🔍 Verificar arquivos JSON gerados
+        run: |
+          echo "📁 Arquivos JSON na raiz:"
+          ls -la *.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON na raiz"
+          echo ""
+          echo "📁 Arquivos JSON em docs/data/:"
+          ls -la docs/data/*.json 2>/dev/null || echo "⚠️ Nenhum arquivo JSON em docs/data/"
+          echo ""
+          echo "📊 Resumo dos arquivos gerados:"
+          for f in docs/data/*.json; do
+            if [ -f "$f" ]; then
+              SIZE=$(wc -c < "$f")
+              echo "  ✅ $f ($SIZE bytes)"
+            fi
+          done
+
+      - name: 🔧 Configurar Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+
+      - name: 📤 Commit dos resultados JSON para o Dashboard
+        run: |
+          # Adiciona apenas os JSONs (não o arquivo de dados grande)
+          git add *.json 2>/dev/null || true
+          git add docs/data/*.json 2>/dev/null || true
+          
+          # Verifica se há mudanças
+          if git diff --staged --quiet; then
+            echo "ℹ️ Nenhuma alteração nos arquivos JSON"
+          else
+            TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            git commit -m "chore: atualização automática - dados do SharePoint [skip ci]
+            
+            📅 Data: $TIMESTAMP
+            📊 Fonte: SharePoint (GMRMPMA)
+            📁 JSONs atualizados em: docs/data/
+            🤖 Workflow: Automação Completa (substitui n8n)"
+            
+            git push
+            echo "✅ JSONs commitados com sucesso!"
+            echo "🌐 Dashboard será atualizado automaticamente"
+          fi
+
+      # =====================================================
+      # FASE 5: SUMÁRIO DA EXECUÇÃO
+      # =====================================================
+
+      - name: 📋 Sumário da Execução
+        if: always()
+        run: |
+          echo "## 🚀 Automação Completa - Resumo" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Informações da Execução" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📅 Data/Hora | $(date '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📁 Arquivo baixado | \`${{ env.ARQUIVO_DADOS }}\` |" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "${{ env.ARQUIVO_DADOS }}" ]; then
+            SIZE=$(ls -lh "${{ env.ARQUIVO_DADOS }}" | awk '{print $5}')
+            echo "| 📊 Tamanho | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Arquivos JSON Gerados (Dashboard)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -la docs/data/*.json 2>/dev/null || echo "Nenhum JSON em docs/data/"
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Links Úteis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- [Dashboard](https://yago-coqueiro.github.io/MP_curvaABC/)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Arquivos de dados](./docs/data/)" >> $GITHUB_STEP_SUMMARY
+

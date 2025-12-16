@@ -16,3 +16,6 @@ google-api-core>=2.0.0
 # Carregamento de variáveis de ambiente
 python-dotenv>=1.0.0
 
+# Download de arquivos (SharePoint/OneDrive)
+requests>=2.28.0
+
