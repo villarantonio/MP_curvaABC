@@ -5,6 +5,10 @@
 # Dados e arquivos gerados
 *.json
 !exemplo_saida.json
+
+# Permite JSONs do dashboard (docs/data/)
+!docs/
+!docs/data/
 !docs/data/*.json
 
 # CSVs - permite apenas o arquivo principal de dados
