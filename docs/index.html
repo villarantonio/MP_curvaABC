@@ -272,10 +272,32 @@
         });
     }
 
+    // Função para obter o primeiro dia (segunda-feira) de uma semana ISO
+    function getWeekDates(ano, semana) {
+        // Encontra a primeira quinta-feira do ano (define a semana 1 no padrão ISO)
+        const jan4 = new Date(ano, 0, 4);
+        const dayOfWeek = jan4.getDay() || 7; // Domingo = 7
+        const firstMonday = new Date(jan4);
+        firstMonday.setDate(jan4.getDate() - dayOfWeek + 1);
+
+        // Calcula a segunda-feira da semana desejada
+        const weekStart = new Date(firstMonday);
+        weekStart.setDate(firstMonday.getDate() + (semana - 1) * 7);
+
+        // Calcula o domingo (fim da semana)
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        return { start: weekStart, end: weekEnd };
+    }
+
     function formatPeriod(p) {
         if (p.includes('W')) {
             const [ano, semana] = p.split('-W');
-            return `Semana ${semana}/${ano}`;
+            const { start, end } = getWeekDates(parseInt(ano), parseInt(semana));
+            const startStr = start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const endStr = end.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            return `Semana ${semana} (${startStr} - ${endStr})`;
         }
         if (p.match(/^\d{4}-\d{2}-\d{2}$/)) {
             return new Date(p + 'T12:00:00').toLocaleDateString('pt-BR');

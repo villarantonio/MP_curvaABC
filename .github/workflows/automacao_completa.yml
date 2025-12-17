@@ -11,7 +11,7 @@ name: Automação Completa - Download SharePoint + Análise + Dashboard
 on:
   # Agendamento automático (substitui o trigger do n8n)
   schedule:
-    - cron: '0 9 * * *'  # Executa todo dia às 9h UTC (6h Brasília)
+    - cron: '30 7 * * *'  # Executa todo dia às 7:30 UTC (4:30 Brasília)
   
   # Permite execução manual
   workflow_dispatch:
