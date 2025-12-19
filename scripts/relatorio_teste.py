@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 NOME_ARQUIVO = sys.argv[1] if len(sys.argv) > 1 else "dados_vendas.xlsx"
 PASTA_SAIDA = "docs/data"
 ARQUIVO_SAIDA = os.path.join(PASTA_SAIDA, "analise_abc_final.json")
+ARQUIVO_CACHE = os.path.join(PASTA_SAIDA, "cache_analises_ia.json")
 
 # Colunas esperadas do CSV
 COL_LOJA = 'FtoResumoVendaGeralItem[loja_id]'
@@ -130,6 +131,104 @@ def validar_colunas_csv(df: pd.DataFrame) -> bool:
         return False
 
     return True
+
+
+# ==========================================
+# 2.5. FUNÇÕES DE CACHE
+# ==========================================
+
+def carregar_cache() -> dict:
+    """
+    Carrega o cache de análises anteriores do arquivo JSON.
+
+    Returns:
+        Dicionário com análises em cache: {loja_id: {produto: analise}}
+    """
+    if not os.path.exists(ARQUIVO_CACHE):
+        logger.info("Nenhum cache encontrado. Iniciando cache vazio.")
+        return {}
+
+    try:
+        with open(ARQUIVO_CACHE, 'r', encoding='utf-8') as f:
+            cache = json.load(f)
+        logger.info(f"Cache carregado: {sum(len(v) for v in cache.values())} análises de {len(cache)} lojas")
+        return cache
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"Erro ao carregar cache: {e}. Iniciando cache vazio.")
+        return {}
+
+
+def salvar_cache(cache: dict) -> bool:
+    """
+    Salva o cache de análises no arquivo JSON.
+
+    Args:
+        cache: Dicionário com análises
+
+    Returns:
+        True se salvou com sucesso
+    """
+    try:
+        Path(ARQUIVO_CACHE).parent.mkdir(parents=True, exist_ok=True)
+        with open(ARQUIVO_CACHE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+        logger.info(f"Cache salvo: {sum(len(v) for v in cache.values())} análises")
+        return True
+    except IOError as e:
+        logger.error(f"Erro ao salvar cache: {e}")
+        return False
+
+
+def gerar_chave_produto(produto: str, classe: str) -> str:
+    """
+    Gera uma chave única para o produto no cache.
+    A chave inclui a classe ABC para re-analisar se a classificação mudar.
+
+    Args:
+        produto: Nome do produto
+        classe: Classificação ABC (A, B ou C)
+
+    Returns:
+        Chave única para o cache
+    """
+    return f"{produto}|{classe}"
+
+
+def obter_analise_cache(cache: dict, id_loja: str, produto: str, classe: str) -> Optional[str]:
+    """
+    Busca análise no cache.
+
+    Args:
+        cache: Dicionário de cache
+        id_loja: ID da loja
+        produto: Nome do produto
+        classe: Classificação ABC
+
+    Returns:
+        Análise do cache ou None se não encontrada
+    """
+    loja_cache = cache.get(str(id_loja), {})
+    chave = gerar_chave_produto(produto, classe)
+    return loja_cache.get(chave)
+
+
+def adicionar_ao_cache(cache: dict, id_loja: str, produto: str, classe: str, analise: str) -> None:
+    """
+    Adiciona uma análise ao cache.
+
+    Args:
+        cache: Dicionário de cache
+        id_loja: ID da loja
+        produto: Nome do produto
+        classe: Classificação ABC
+        analise: Texto da análise
+    """
+    id_loja_str = str(id_loja)
+    if id_loja_str not in cache:
+        cache[id_loja_str] = {}
+
+    chave = gerar_chave_produto(produto, classe)
+    cache[id_loja_str][chave] = analise
 
 
 # ==========================================
@@ -451,7 +550,8 @@ def gerar_historico_vendas(df: pd.DataFrame) -> pd.DataFrame:
 def processar_loja(
     df_loja: pd.DataFrame,
     id_loja: str,
-    modelo: Optional[genai.GenerativeModel]
+    modelo: Optional[genai.GenerativeModel],
+    cache: dict
 ) -> dict:
     """
     Processa dados de uma loja individual: curva ABC e análise IA.
@@ -460,6 +560,7 @@ def processar_loja(
         df_loja: DataFrame com dados da loja
         id_loja: Identificador da loja
         modelo: Modelo Gemini ou None
+        cache: Dicionário de cache com análises anteriores
 
     Returns:
         Dicionário com dados processados da loja
@@ -489,9 +590,9 @@ def processar_loja(
         axis=1
     ).tolist()
 
-    # Análise IA com lotes
+    # Análise IA com lotes (usando cache)
     if modelo:
-        itens_loja = processar_analise_ia(modelo, id_loja, itens_loja)
+        itens_loja = processar_analise_ia(modelo, id_loja, itens_loja, cache)
 
     # Converte ID para int se possível, senão mantém string
     try:
@@ -505,26 +606,52 @@ def processar_loja(
 def processar_analise_ia(
     modelo: genai.GenerativeModel,
     id_loja: str,
-    itens: list[dict]
+    itens: list[dict],
+    cache: dict
 ) -> list[dict]:
     """
     Processa análise IA em lotes para todos os itens de uma loja.
+    Usa cache para evitar chamadas duplicadas à API Gemini.
 
     Args:
         modelo: Modelo Gemini configurado
         id_loja: Identificador da loja
         itens: Lista de itens para análise
+        cache: Dicionário de cache com análises anteriores
 
     Returns:
         Lista de itens com análise IA adicionada
     """
     analises_finais = []
-    total_lotes = (len(itens) + TAMANHO_LOTE_IA - 1) // TAMANHO_LOTE_IA
+    itens_novos = []  # Itens que precisam de análise IA
+    itens_cache = []  # Itens que já têm análise em cache
 
-    for i, k in enumerate(range(0, len(itens), TAMANHO_LOTE_IA)):
-        lote = itens[k:k + TAMANHO_LOTE_IA]
+    # Separa itens em cache e novos
+    for item in itens:
+        analise_cache = obter_analise_cache(cache, id_loja, item['produto'], item['classe'])
+        if analise_cache:
+            item['analise_ia'] = analise_cache
+            itens_cache.append(item)
+        else:
+            itens_novos.append(item)
 
-        logger.info(f"  Processando lote {i + 1}/{total_lotes} ({len(lote)} itens)")
+    logger.info(f"  📦 Cache: {len(itens_cache)} produtos | 🆕 Novos: {len(itens_novos)} produtos")
+
+    # Adiciona itens do cache ao resultado final
+    analises_finais.extend(itens_cache)
+
+    # Se não há itens novos, retorna direto
+    if not itens_novos:
+        logger.info(f"  ✅ Todos os produtos já estavam em cache!")
+        return analises_finais
+
+    # Processa apenas os itens novos em lotes
+    total_lotes = (len(itens_novos) + TAMANHO_LOTE_IA - 1) // TAMANHO_LOTE_IA
+
+    for i, k in enumerate(range(0, len(itens_novos), TAMANHO_LOTE_IA)):
+        lote = itens_novos[k:k + TAMANHO_LOTE_IA]
+
+        logger.info(f"  Processando lote {i + 1}/{total_lotes} ({len(lote)} itens novos)")
 
         # Prepara dados mínimos para IA
         lote_ia = [
@@ -546,16 +673,19 @@ def processar_analise_ia(
             if isinstance(item, dict)
         }
 
-        # Adiciona análise a cada item
+        # Adiciona análise a cada item e atualiza cache
         for item in lote:
-            item['analise_ia'] = dict_analises.get(
-                item['produto'],
-                "Análise indisponível"
-            )
+            analise = dict_analises.get(item['produto'], "Análise indisponível")
+            item['analise_ia'] = analise
+
+            # Adiciona ao cache (exceto análises indisponíveis)
+            if analise != "Análise indisponível":
+                adicionar_ao_cache(cache, id_loja, item['produto'], item['classe'], analise)
+
             analises_finais.append(item)
 
         # Pausa entre lotes para evitar rate limiting
-        if k + TAMANHO_LOTE_IA < len(itens):
+        if k + TAMANHO_LOTE_IA < len(itens_novos):
             time.sleep(PAUSA_ENTRE_LOTES)
 
     return analises_finais
@@ -621,6 +751,9 @@ def main() -> None:
     # 4. Configurar IA
     modelo = configurar_ia()
 
+    # 4.5. Carregar cache de análises anteriores
+    cache = carregar_cache()
+
     # 5. Processar lojas
     lista_lojas = df_processado[COL_LOJA].unique()
     total_lojas = len(lista_lojas)
@@ -633,10 +766,14 @@ def main() -> None:
         logger.info(f"Processando Loja {id_loja} ({idx}/{total_lojas})")
 
         df_loja = df_processado[df_processado[COL_LOJA] == id_loja]
-        resultado_loja = processar_loja(df_loja, id_loja, modelo)
+        resultado_loja = processar_loja(df_loja, id_loja, modelo, cache)
         resultado_final.append(resultado_loja)
 
-    # 6. Salvar resultado
+    # 6. Salvar cache atualizado
+    salvar_cache(cache)
+    logger.info("Cache de análises atualizado")
+
+    # 7. Salvar resultado
     if salvar_resultado(resultado_final, ARQUIVO_SAIDA):
         logger.info("=" * 50)
         logger.info("PROCESSAMENTO CONCLUÍDO COM SUCESSO!")
