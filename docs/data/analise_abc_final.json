@@ -23779,6 +23779,15 @@
         "analise_ia": "Produto com potencial - avaliar ações de marketing."
       },
       {
+        "produto": "CARRE CORDEIRO URUGUAIO",
+        "valor_total": 37.5,
+        "classe": "C",
+        "historico": {
+          "2024-05": 37.5
+        },
+        "analise_ia": "Baixo giro - avaliar promoção ou reduzir estoque"
+      },
+      {
         "produto": "DRINK GIN TROPICAL TANQUERAY",
         "valor_total": 36.9,
         "classe": "C",
@@ -25013,15 +25022,6 @@
           "2025-11": 0.01
         },
         "analise_ia": "Baixa procura - promover ou reduzir preparo."
-      },
-      {
-        "produto": "CARRE CORDEIRO URUGUAIO",
-        "valor_total": 37.5,
-        "classe": "C",
-        "historico": {
-          "2024-05": 37.5
-        },
-        "analise_ia": "Baixo giro - avaliar promoção ou reduzir estoque"
       }
     ]
   },
