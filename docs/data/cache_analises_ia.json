@@ -1902,7 +1902,11 @@
     "MEDALHAO FILE MIGNON|C": "Baixa procura - avaliar promoções ou reformular",
     "PICOLE INTENSE FIOR DI LATTE|C": "Baixa procura - avaliar promoções ou reformular",
     "GALETO CONGELADO TEMPERADO|C": "Baixa procura - avaliar promoções ou reformular",
-    "PICOLE DE CASTANHA|C": "Baixa procura - avaliar promoções ou reformular"
+    "PICOLE DE CASTANHA|C": "Baixa procura - avaliar promoções ou reformular",
+    "PICANHA BEAUVALLET G|A": "Produto de alto giro - garantir estoque e visibilidade",
+    "PICANHA ESTANCIA 92|B": "Demanda moderada - avaliar promoções e posicionamento",
+    "BIFE CHORIZO ORO TORO|C": "Baixo volume - analisar preço e visibilidade no menu",
+    "CARVÃO 3KG|C": "Baixo volume - avaliar necessidade e alternativas"
   },
   "4": {
     "FICHA FLIPERAMA|A": "Produto com potencial, otimizar estoque e promoções.",
@@ -2741,7 +2745,9 @@
     "COCA COLA 2L FUNCIONARIO|A": "Produto de alta demanda - garantir estoque e visibilidade",
     "CHOPP 300ML|A": "Produto com potencial - otimizar exposição e promoções",
     "SUCO LARANJA 500ML|B": "Produto com boa saída - avaliar ações de marketing",
-    "PIZZA FRANGO C/ CATUPIRI MÉDIA|C": "Produto com demanda moderada - analisar sazonalidade"
+    "PIZZA FRANGO C/ CATUPIRI MÉDIA|C": "Produto com demanda moderada - analisar sazonalidade",
+    "COCA COLA 600ML|A": "Produto de alto giro - garantir estoque e visibilidade",
+    "CB PIZZA P MANDA PIZZA IFOOD|C": "Baixo volume - avaliar promoção ou descontinuar"
   },
   "6": {
     "PARMEGIANA IND IFOOD|A": "Produto com potencial de crescimento - investir em divulgação.",
@@ -3409,7 +3415,13 @@
     "AVENTAL DE TECIDO|B": "Produto com boa saída - avaliar ações de marketing",
     "PAO ALHO PICANTE 400G|B": "Produto com boa saída - analisar preço e posicionamento",
     "ESPETO CHORIZO KG|C": "Produto com baixa demanda - avaliar preço e promoções",
-    "ESPETO CUPIM GRILL KG|C": "Produto com baixa demanda - considerar descontinuar"
+    "ESPETO CUPIM GRILL KG|C": "Produto com baixa demanda - considerar descontinuar",
+    "BIFE ANCHO ANGUS 1953|A": "Produto chave - garantir estoque e visibilidade",
+    "PALETA CORD URUGUAIA TEMPERADO|A": "Produto chave - manter destaque e disponibilidade",
+    "LINGUIÇA TOSCANA NA BRASA|A": "Produto chave - assegurar oferta e promover",
+    "BIFE ANCHO ALBA BEEF|B": "Produto com potencial - avaliar promoção",
+    "CREMOSO DE COSTELA EXEC|C": "Baixo giro - avaliar preço ou descontinuar",
+    "ACENDEDOR FOGUITO CARVAO|C": "Baixo giro - avaliar promoção ou descontinuar"
   },
   "9": {
     "FILE MIGNON PARMEGIANA 2P|A": "Produto com potencial - monitorar sazonalidade e promoções",
